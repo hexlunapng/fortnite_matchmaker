@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "P6i/1MUz9fk=",
+  "success": true,
+  "projectFilePath": "D:\\Downloads\\Terrain\\linux\\linux.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Administrator\\.nuget\\packages\\websocketsharp-netstandard\\1.0.1\\websocketsharp-netstandard.1.0.1.nupkg.sha512"
+  ],
+  "logs": []
+}
