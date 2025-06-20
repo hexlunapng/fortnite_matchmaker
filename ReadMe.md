@@ -1,5 +1,4 @@
-# TODO 
-the queuing system ofc
+basic ass matchmaker for fortnite in c#
 
 
 
