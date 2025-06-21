@@ -1,7 +1,11 @@
 ﻿using System;
-using System.Text;
-using System.Threading;
+using System.Net;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using WebSocketSharp;
 using WebSocketSharp.Server;
 
@@ -30,7 +34,7 @@ public class MatchmakerBehavior : WebSocketBehavior
 
         void SendMsg(object payload, string name)
         {
-            var message = System.Text.Json.JsonSerializer.Serialize(new { payload, name });
+            var message = JsonSerializer.Serialize(new { payload, name });
             Send(message);
         }
 
@@ -45,9 +49,54 @@ public class MatchmakerBehavior : WebSocketBehavior
 
 class Program
 {
+    static async Task HandleConnection(HttpListenerContext context)
+    {
+        WebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
+        System.Net.WebSockets.WebSocket socket = wsContext.WebSocket;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var ticketId = CreateMd5($"1{now}");
+        var matchId = CreateMd5($"2{now}");
+        var sessionId = CreateMd5($"3{now}");
+
+        async Task SendJson(object obj)
+        {
+            string json = JsonSerializer.Serialize(obj);
+            byte[] buffer = Encoding.UTF8.GetBytes(json);
+            await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(200);
+            await SendJson(new { payload = new { state = "Connecting" }, name = "StatusUpdate" });
+
+            await Task.Delay(800);
+            await SendJson(new { payload = new { totalPlayers = 1, connectedPlayers = 1, state = "Waiting" }, name = "StatusUpdate" });
+
+            await Task.Delay(1000);
+            await SendJson(new { payload = new { ticketId, queuedPlayers = 0, estimatedWaitSec = 0, status = new { }, state = "Queued" }, name = "StatusUpdate" });
+
+            await Task.Delay(4000);
+            await SendJson(new { payload = new { matchId, state = "SessionAssignment" }, name = "StatusUpdate" });
+
+            await Task.Delay(2000);
+            await SendJson(new { payload = new { matchId, sessionId, joinDelaySec = 1 }, name = "Play" });
+
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+        });
+    }
+
+    static string CreateMd5(string input)
+    {
+        using var md5 = MD5.Create();
+        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
+        return BitConverter.ToString(hash).Replace("-", "").ToLower();
+    }
+
     static void Main()
     {
-        var wssv = new WebSocketServer(System.Net.IPAddress.Any, 80);
+        var wssv = new WebSocketServer(IPAddress.Any, 80);
         wssv.AddWebSocketService<MatchmakerBehavior>("/");
         wssv.Start();
 
